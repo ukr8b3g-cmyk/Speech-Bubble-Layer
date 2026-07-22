@@ -46,13 +46,30 @@ git pull
 
 ## 最初の使い方
 
-1. `Load Image` の画像を `Speech Bubble Layer` の `image` へ接続します。
-2. ノードの **Open Speech Bubble Editor** を押します。
-3. 左側の一覧から吹き出し、SFX、スタンプ、フレームを追加します。
-4. キャンバス上で位置・サイズ・回転を調整します。
-5. 右側のPropertiesで文字、色、枠線、影などを設定します。
-6. **Save Layout** を押してエディターの内容をノードへ保存します。
-7. `layer` と `mask` を `Speech Bubble Composite` に接続して実行します。
+### ノードの接続
+
+```mermaid
+flowchart LR
+    A["1. Load Image"] -->|"IMAGE → image"| B["2. Speech Bubble Layer"]
+    A -->|"IMAGE → image"| C["3. Speech Bubble Composite"]
+    B -->|"layer → layer"| C
+    B -->|"mask → mask"| C
+    C -->|"image → images"| D["4. Preview / Save Image / Save Animated WEBP"]
+```
+
+1. `Load Image` の `IMAGE` を `Speech Bubble Layer` の `image` へ接続します。
+2. 同じ `IMAGE` を `Speech Bubble Composite` の `image` にも分岐して接続します。
+3. `Speech Bubble Layer` の `layer` と `mask` を、`Speech Bubble Composite` の同名入力へ接続します。
+4. `Speech Bubble Composite` の `image` を、プレビューまたは保存ノードへ接続します。静止画なら `Save Image`、アニメーションなら `Save Animated WEBP` などを使用できます。
+
+### 編集の順番
+
+1. `Speech Bubble Layer` の **Open Speech Bubble Editor** を押します。
+2. 左側の一覧から吹き出し、SFX、スタンプ、フレームを追加します。
+3. キャンバス上で位置・サイズ・回転を調整します。
+4. 右側のPropertiesで文字、色、枠線、影などを設定します。
+5. **Save Layout** を押してエディターの内容をノードへ保存します。
+6. ComfyUIでワークフローを実行し、`Speech Bubble Composite` の合成結果を確認します。
 
 `Speech Bubble Layer` 単体でもプレビューを表示します。最終的な合成結果を後段へ渡す場合は `Speech Bubble Composite` を使います。
 
