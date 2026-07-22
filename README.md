@@ -4,6 +4,14 @@ ComfyUI上で、画像へ**吹き出し・テキスト・オノマトペ・コ�
 
 出力は合成用の `layer` と `mask` です。必要に応じて `Speech Bubble Composite` ノードへ接続し、元画像へ合成できます。
 
+## まずここから
+
+`Speech Bubble Layer` ノードの緑色の **Open Speech Bubble Editor** ボタンをクリックすると、専用エディターが開きます。吹き出しや文字の編集はここから始めます。
+
+<p align="center">
+  <a href="docs/images/open-speech-bubble-editor.png"><img src="docs/images/open-speech-bubble-editor.png" alt="Open Speech Bubble Editor button" width="70%"></a>
+</p>
+
 <p align="center">
   <a href="docs/images/editor-overview.png"><img src="docs/images/editor-overview.png" alt="Speech Bubble Editor" width="85%"></a>
 </p>
