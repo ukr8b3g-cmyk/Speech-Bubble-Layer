@@ -5,9 +5,12 @@ ComfyUI上で、画像へ**吹き出し・テキスト・オノマトペ・コ�
 出力は合成用の `layer` と `mask` です。必要に応じて `Speech Bubble Composite` ノードへ接続し、元画像へ合成できます。
 
 <p align="center">
-  <a href="docs/images/editor-overview.png"><img src="docs/images/editor-overview.png" alt="Speech Bubble Editor" width="32%"></a>
-  <a href="docs/images/comfyui-workflow.png"><img src="docs/images/comfyui-workflow.png" alt="ComfyUI workflow" width="32%"></a>
-  <a href="docs/images/font-browser.png"><img src="docs/images/font-browser.png" alt="Font browser" width="32%"></a>
+  <a href="docs/images/editor-overview.png"><img src="docs/images/editor-overview.png" alt="Speech Bubble Editor" width="85%"></a>
+</p>
+
+<p align="center">
+  <a href="docs/images/comfyui-workflow.png"><img src="docs/images/comfyui-workflow.png" alt="ComfyUI workflow" width="49%"></a>
+  <a href="docs/images/font-browser.png"><img src="docs/images/font-browser.png" alt="Font browser" width="49%"></a>
 </p>
 
 画像をクリックすると原寸で表示されます。
