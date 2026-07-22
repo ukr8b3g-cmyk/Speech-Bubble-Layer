@@ -54,13 +54,17 @@ flowchart LR
     A -->|"IMAGE → image"| C["3. Speech Bubble Composite"]
     B -->|"layer → layer"| C
     B -->|"mask → mask"| C
-    C -->|"image → images"| D["4. Preview / Save Image / Save Animated WEBP"]
+    C -->|"image → images"| D["4. Preview / Save Image"]
 ```
+
+**サンプルワークフロー:** [Speech_Bubble_test_workflow.json](examples/Speech_Bubble_test_workflow.json)
+
+ダウンロードしたJSONをComfyUIのキャンバスへドラッグ＆ドロップして読み込めます。`Load Image` の画像は自分の環境で選択し直してください。
 
 1. `Load Image` の `IMAGE` を `Speech Bubble Layer` の `image` へ接続します。
 2. 同じ `IMAGE` を `Speech Bubble Composite` の `image` にも分岐して接続します。
 3. `Speech Bubble Layer` の `layer` と `mask` を、`Speech Bubble Composite` の同名入力へ接続します。
-4. `Speech Bubble Composite` の `image` を、プレビューまたは保存ノードへ接続します。静止画なら `Save Image`、アニメーションなら `Save Animated WEBP` などを使用できます。
+4. `Speech Bubble Composite` の `image` を、プレビューまたは `Save Image` へ接続します。
 
 ### 編集の順番
 
