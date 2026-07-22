@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "corrected-symbols-v2",
+  "label": "Corrected Symbols v2",
+  "category": "symbols",
+  "revision": 2,
+  "defaults": {
+    "fillColor": "#FFD42A",
+    "outlineColor": "#111111",
+    "outlineWidth": 3,
+    "opacity": 1
+  },
+  "items": [
+    {
+      "id": "handdrawn-filled-heart-mask",
+      "label": "手描き塗りハート",
+      "ocrLabel": "手描き塗りハート",
+      "sortKey": "手描き塗りハート",
+      "asset": "png/17_heart_large_and_small.png",
+      "category": "symbols",
+      "mask": true,
+      "outlineWidth": 0,
+      "w": 342,
+      "h": 420,
+      "tags": [
+        "corrected",
+        "heart",
+        "symbol"
+      ]
+    },
+    {
+      "id": "filled-heart-mask",
+      "label": "塗りハート",
+      "ocrLabel": "塗りハート",
+      "sortKey": "塗りハート",
+      "asset": "png/18_heart_large.png",
+      "category": "symbols",
+      "mask": true,
+      "outlineWidth": 0,
+      "w": 358,
+      "h": 262,
+      "tags": [
+        "corrected",
+        "heart",
+        "symbol"
+      ]
+    }
+  ]
+}
