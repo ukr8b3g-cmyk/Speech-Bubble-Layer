@@ -1,121 +1,168 @@
 # ComfyUI Speech Bubble
 
-A lightweight speech-bubble and text editor for ComfyUI. Open the editor from the node, arrange bubble and text layers, save the layout, and queue the workflow to render the final image.
+ComfyUI上で、画像へ**吹き出し・テキスト・オノマトペ・コミックスタンプ・装飾フレーム**を重ねるためのカスタムノードです。専用エディターで配置を作り、レイアウトを保存してからワークフローを実行します。
 
-A distinctive feature is the direct **360-degree tail (pointer) handle**: the speaker pointer is not locked to a left/right preset and can be aimed freely at any character or off-canvas position.
+出力は合成用の `layer` と `mask` です。必要に応じて `Speech Bubble Composite` ノードへ接続し、元画像へ合成できます。
 
-## Built-in shapes and shape morphing
+<p align="center">
+  <a href="docs/images/editor-overview.png"><img src="docs/images/editor-overview.png" alt="Speech Bubble Editor" width="32%"></a>
+  <a href="docs/images/comfyui-workflow.png"><img src="docs/images/comfyui-workflow.png" alt="ComfyUI workflow" width="32%"></a>
+  <a href="docs/images/font-browser.png"><img src="docs/images/font-browser.png" alt="Font browser" width="32%"></a>
+</p>
 
-Speech and thought bubbles are loaded from the built-in shape manifest. Basic geometric shapes and color image shapes are registered as static Shape presets; both appear in the unified Speech Bubbles & Shapes browser. Retired jagged/burst entries are not registered as built-in presets.
+画像をクリックすると原寸で表示されます。
 
-- Classic Oval and Box share a Roundness control: 0 is a box and 100 is an oval. Box starts at Roundness 0 and Asymmetry 0.
-- Thought Cloud provides Cloudiness, Lobe Count, Lobe Depth, and Softness. Double and fuzzy clouds are created from this one starting shape.
-- Tunable shapes support deliberate asymmetry and deterministic Randomize Shape, followed by direct Bézier editing when needed.
+## インストール
 
-Changing these parameters creates a custom vector shape while retaining the selected preset as its understandable starting point. Additional unusual shapes can be added later as new starting presets without changing the renderer or layer workflow.
+ComfyUIを終了してから、`custom_nodes` フォルダーで実行します。
 
-## User shape presets
+```powershell
+git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer.git ComfyUI-Speech-Bubble
+```
 
-Select a bubble and use **Save as User Preset…** to preserve its final Bézier outline and shape parameters. User presets appear in **Browse All Shapes > User Presets** and can be updated or deleted. Import and Export use a portable JSON file.
+すでに導入済みの場合は、対象フォルダーで更新します。
 
-Only the reusable shape is stored; dialogue text, position, colors, canvas size, and other scene layout data are not included. Presets are isolated per ComfyUI user. The default single-user file is `ComfyUI/user/default/speech-bubble/presets.json`.
+```powershell
+git pull
+```
 
-## Tail handle
+その後、ComfyUIを起動または再起動し、ブラウザーをハードリロードしてください。
 
-The pointed part of a speech bubble is generally called its **tail** or **pointer**. Speech bubbles use a yellow handle to control its direction and length. Drag it freely around the bubble for 360-degree placement. If a tail is not needed, drag the yellow handle inside the bubble; the tail is then hidden inside the bubble body.
+## 主な機能
 
-Thought bubbles use the same handle concept for their thought dots. Narration and explanation boxes have no speaker, so they do not require a tail handle.
+このノードは漫画ページ全体を生成するものではなく、**一枚絵に会話・文字・記号・簡単な装飾枠を重ねるためのエディター**です。
 
-## Outline styles
+- **吹き出しとテキスト**: 吹き出しの尻尾、文字内容、フォント、色、アウトライン、サイズを設定できます。最初に追加する吹き出しはテキストの下へ入ります。
+- **文字組み**: Tracking（文字間隔）、Horizontal / Vertical Scale、太字、斜体、下線、取り消し線、横書き / 縦書き、Auto Fitに対応します。
+- **素材**: Shape、SFX、コミックスタンプ、簡単なフレームを追加できます。現在は吹き出し9種、基本Shape 7種、SFX 180種、スタンプ29種、フレーム2種を収録しています。
+- **色・サイズと効果**: テキストは文字色 / アウトライン色、Shape・SFX・スタンプは塗り / アウトライン色、フレームはボーダー / 内側アウトライン色を個別に変更できます。Outline Widthを`0`にすると枠線なしです。テキストはフォントサイズ、Shape・SFX・スタンプは比率を保つSizeまたはWidth / Heightで調整できます。スウォッチまたは任意色を使え、文字・Shape・SFX・スタンプにはDrop Shadow、フレームには内側シャドウとOuter Glowを設定できます。
+- **レイヤー**: 表示 / 非表示、選択、グループ化、順序変更に対応します。フレームは通常クリックを下のレイヤーへ通します。
+- **素材閲覧**: おすすめ・関連順、使用回数順、名前順で並び替えできます。カードの星を押したお気に入りは、左のクイック表示へ優先表示されます。
 
-Outline appearance is selected in **Properties > Outline Style** instead of using separate shape presets. Available styles are Solid, Double, Dashed, and Dotted.
+基本操作はマウスで行えますが、Propertiesの数値入力から位置・サイズ・色・不透明度などを正確に指定することもできます。
 
-Dotted outlines are distributed by distance along the complete outline. Dot spacing stays uniform across horizontal, vertical, diagonal, curved, and closing segments.
+## 最初の使い方
 
-## Editor controls
+1. `Load Image` の画像を `Speech Bubble Layer` の `image` へ接続します。
+2. ノードの **Open Speech Bubble Editor** を押します。
+3. 左側の一覧から吹き出し、SFX、スタンプ、フレームを追加します。
+4. キャンバス上で位置・サイズ・回転を調整します。
+5. 右側のPropertiesで文字、色、枠線、影などを設定します。
+6. **Save Layout** を押してエディターの内容をノードへ保存します。
+7. `layer` と `mask` を `Speech Bubble Composite` に接続して実行します。
 
-- The background layer is fixed, so it has no lock control. Use its eye icon to show or hide it in the editor preview.
-- Group and Ungroup are located above the Layers list. Alt-click selects one layer inside a group. Alt-drag moves that layer independently and temporarily bypasses its lock.
-- Ctrl/Shift-click selects multiple ungrouped layers. Drag any selected layer to move the entire temporary selection together.
-- Hover a numeric field and use the mouse wheel to adjust it. Hold Shift while scrolling for 10x steps.
-- Transform and Drop Shadow start collapsed. Their open/closed state is remembered after the user changes it.
-- Font Size is always stored and displayed as a whole number; decimal input is truncated. Text Color and Outline Color can be selected independently.
-- The font browser shows a live sample for each installed family and separates Japanese, Simplified Chinese, Traditional Chinese, Korean, Latin, and other scripts. Families stay collapsed to one row; additional installed styles expand only when requested. Search, Favorites, Recent, and Recommended keep the default list short.
-- Character Spacing uses Photoshop-style Tracking values (`-200` to `500`). Horizontal Scale and Vertical Scale independently stretch the glyphs from `10%` to `500%`.
-- With one text layer selected, Ctrl-drag a left/right handle to stretch glyphs horizontally, or Ctrl-drag a top/bottom handle to stretch them vertically. Dragging without Ctrl continues to resize only the text box.
-- Ctrl+C copies the selected bubble/text layers to the editor clipboard and Ctrl+V pastes them with a small offset. Multi-selections are copied together, including their group relationship. Copy and Paste are also available from each layer's `⋮` menu. Text fields keep normal text copy/paste behavior while focused.
-- All seven starting shapes provide shape-changing controls appropriate to their geometry, plus **Asymmetry** and **Randomize Shape**.
-- Shape Intensity or Cloudiness 0 produces a smooth oval; increasing it restores the selected starting shape.
-- Existing layouts that used the older Jagged Intensity setting are migrated automatically.
+`Speech Bubble Layer` 単体でもプレビューを表示します。最終的な合成結果を後段へ渡す場合は `Speech Bubble Composite` を使います。
 
-## Node preview persistence
+## エディターの構成
 
-The Speech Bubble Layer keeps the most recent queued preview in `output/speech_bubble_preview` and restores it when returning from another workflow tab or after restarting ComfyUI. The file is overwritten per node and batch instead of creating a new preview on every queue. Live editor previews remain session-only until the workflow is queued.
+### 左側: 素材一覧
 
-For preview diagnostics, set `localStorage.speech_bubble_preview_debug = "1"` in the browser console and reload. Remove that key after checking to disable the debug messages.
+- **Speech Bubbles / Shapes**: 吹き出し、基本図形、カラーShape
+- **Onomatopoeia / SFX**: 漫画用の効果音・オノマトペ
+- **Comic Stamps / Symbols**: 矢印、記号、感情表現、装飾
+- **Frames**: ボーダーや前面装飾フレーム
 
-## Minimal edge-repeat frame assets
+素材カードの星はお気に入りです。クイック表示には、お気に入りを最大2件表示します。お気に入りがないときだけ定番素材を表示します。
 
-An `edge-repeat` frame is auto-registered from `web/assets/frames/<frame_id>/manifest.json`. Its runtime package may contain only `manifest.json`, `preview.webp`, and the eight corner/edge WebP files under `parts/`. `runtimeAsset` and `runtimeAsset2x` are optional for this render mode; `nine-slice` and `full-overlay` still require `runtimeAsset`.
+### 中央: キャンバス
 
----
+- クリックでレイヤーを選択し、ドラッグで移動します。
+- 周囲のハンドルでサイズ変更、緑のハンドルで回転します。
+- **Shift** を押しながら角ハンドルを操作すると、比率を固定して変形できます。
+- マウスホイールで拡大・縮小し、ホイールクリックまたはSpace + ドラッグでキャンバスを移動します。
+- フレームは通常、クリックを下のレイヤーへ通します。レイヤー一覧からフレームを選択したときだけ、ハンドルで直接編集できます。
 
-# ComfyUI スピーチバブル
+### 右側: Properties と Layers
 
-ComfyUI上で吹き出しと文字レイヤーを配置する軽量エディターです。ノードからエディターを開き、配置を保存してワークフローを実行すると最終画像へ反映されます。
+- **Text**: 内容、フォント、サイズ、色、アウトライン、文字間隔、書字方向
+- **SFX / Stamp / Shape**: 比率を保つSize、必要に応じたWidth / Height、塗り・枠線・不透明度
+- **Frame**: ボーダー色、内側アウトライン、余白、スケール、不透明度
+- **Layers**: 表示、選択、グループ化、並び順の確認
 
-特徴的な機能として、発話者を指す**尻尾（tail / pointer）を360度自由に動かせるハンドル**があります。左右などの固定プリセットに制限されず、任意の人物や画像枠外へ直接向けられます。
+色はスウォッチから素早く統一できます。任意色が必要な場合は通常のカラーピッカーを使います。
 
-## ビルトイン形状と形状変化
+## 吹き出しの操作
 
-発話・思考バブルはビルトインShapeマニフェストから読み込みます。基本図形とカラー画像のShapeは静的プリセットとして登録し、どちらも統合されたSpeech Bubbles & Shapes一覧に表示します。廃止したギザギザ／バースト形状はビルトイン登録していません。
+- 黄色いハンドルで、話者を示す尻尾（ポインター）の向きと長さを360度自由に調整できます。
+- 尻尾を吹き出し内部へ入れると非表示になります。
+- 思考バブルでは同じ操作で思考点を調整します。
+- Outline StyleではSolid / Double / Dashed / Dottedを選べます。
 
-- Classic OvalとBoxはRoundnessを共有します。0で四角、100で楕円になります。Boxの初期値はRoundness 0、Asymmetry 0です。
-- Thought Cloudでは、Cloudiness、Lobe Count、Lobe Depth、Softnessを変更できます。Double CloudやFuzzy Thoughtも、この1種類から作成できます。
-- 調整対応の形状では、再現可能なRandomize Shapeとベジェパスの直接編集を使用できます。
+形状を再利用したい場合は、吹き出しを選択して **Save as User Preset…** を使います。保存対象は形状とそのパラメーターだけで、セリフ・位置・色・キャンバスサイズは含まれません。
 
-パラメータを変更すると、選択した開始形状を基準にしたカスタムベクター形状になります。将来、変わった形を追加する場合も、レンダラーやレイヤー構成を増やさず、新しい開始プリセットとして追加できます。
+## テキスト操作
 
-## ユーザー形状プリセット
+- 左側の **+ Text** またはキーボードの **T** でテキストレイヤーを追加します。
+- `Character Spacing (Tracking)` は文字間だけを変更します。負の値で詰め、正の値で広げます。
+- Horizontal / Vertical Scale は文字そのものを横・縦方向へ伸縮します。
+- Bold / Italic / Underline / Strike、横書き / 縦書き、Auto Fitを設定できます。
+- テキストレイヤーを1つ選択した状態で、**Ctrl + 左右ハンドルのドラッグ**は横方向、**Ctrl + 上下ハンドルのドラッグ**は縦方向の文字変形です。
+- `Ctrl+C` / `Ctrl+V` で選択レイヤーをコピー・貼り付けできます。複数選択とグループ関係も維持します。
 
-吹き出しを選択して**Save as User Preset…**を押すと、最終的なベジェ外形と形状パラメータを保存できます。保存した形状は**Browse All Shapes > User Presets**に表示され、更新・削除が可能です。Import / Exportでは持ち運び可能なJSONを使用します。
+## レイヤー操作
 
-保存対象は再利用する形状だけです。セリフ文字、位置、色、キャンバスサイズなどのシーン配置情報は含みません。プリセットはComfyUIユーザーごとに分離されます。通常の単一ユーザー環境では`ComfyUI/user/default/speech-bubble/presets.json`に保存されます。
+- `Ctrl` または `Shift` を押しながらクリックすると複数選択できます。
+- Group / Ungroupで複数レイヤーをまとめられます。
+- グループ内のレイヤーは **Altクリック** で個別選択できます。
+- 数値欄へマウスを重ねてホイールを回すと値を調整できます。**Shift + ホイール** は10倍刻みです。
 
-## 尻尾ハンドル
+## 素材パックの追加
 
-吹き出しから話者へ伸びる尖った部分は、一般に**尻尾**または**ポインター**（tail / pointer）と呼ばれます。発話用の吹き出しでは、黄色いハンドルで尻尾の方向と長さを調整します。吹き出しの周囲を自由にドラッグでき、360度どの方向にも配置できます。尻尾が不要な場合は、黄色いハンドルを吹き出し内部へ移動してください。尻尾が本体の内側へ収納され、見えなくなります。
+拡張素材は、カテゴリごとに1パック1フォルダーで配置します。
 
-思考バブルでは、同じハンドル操作で思考点の位置を変更します。第三者による説明・解説などのナレーション枠には話者がいないため、尻尾ハンドルは使用しません。
+```text
+web/assets/
+├─ shapes/<pack-id>/manifest.json
+├─ sfx/<pack-id>/manifest.json
+└─ frames/<pack-id>/manifest.json
+```
 
-## 枠線スタイル
+各 `manifest.json` では、パック内の相対パスだけを参照してください。素材追加後はComfyUIを再起動します。同じアセットIDを使うと後に読み込まれた定義が優先されるため、配布・更新時はIDを安定させてください。
 
-線種ごとの形状プリセットは使用せず、**Properties > Outline Style**から枠線を選択します。Solid、Double、Dashed、Dottedに対応します。
+素材パックの詳細は [web/assets/README.md](web/assets/README.md) を参照してください。フレームは `nine-slice`、`full-overlay`、`edge-repeat`、`decorated-border` の描画方式に対応します。
 
-Dottedは外周全体の実距離を基準に配置します。横・縦・斜め・曲線・一周した継ぎ目でも、ドット間隔が均等になります。
+## 現在の対応範囲と今後
 
-## エディター操作
+- 現在の対象は、**一枚絵へレイヤーを重ねる編集**です。複数コマ漫画や、複数画像をまたぐページレイアウトは対象外です。
+- ユーザー素材パックやユーザープリセットを、より簡単に追加・共有できる仕組みは今後の検討項目です。
+- A1111、Forge-Neo、ReForge系への移植も将来候補として検討しています。実装時期・対応を保証するものではありません。
 
-- 背景レイヤーは固定のため鍵はありません。目のアイコンでエディター上の表示・非表示を切り替えられます。
-- Group / UngroupはLayers一覧の上にあります。Altクリックでグループ内の1レイヤーだけを選択し、Altドラッグでロックを一時的に迂回して単独移動できます。
-- Ctrl / Shiftクリックで、グループ化していない複数レイヤーを一時選択できます。選択中のどれかをドラッグすると、選択した全レイヤーを一緒に移動できます。
-- 数値入力欄にマウスを重ねてホイールを回すと値を変更できます。Shiftを押しながら回すと10倍刻みです。
-- TransformとDrop Shadowは初期状態では閉じています。ユーザーが変更した後は、開閉状態を次回も保持します。
-- Font Sizeは常に整数で保存・表示され、小数入力は切り捨てられます。Text ColorとOutline Colorは別々に選択できます。
-- フォントブラウザーは、OSにインストールされた各ファミリーを実際の書体サンプルで表示し、日本語・簡体字・繁体字・韓国語・Latin・その他の文字体系に分けます。通常はファミリーを1行にまとめ、追加スタイルは必要なときだけ展開します。Search、Favorites、Recent、Recommendedにより初期一覧を短く保ちます。
-- Character SpacingはPhotoshopに近いTracking値（`-200`〜`500`）です。Horizontal Scale / Vertical Scaleで文字自体を`10%`〜`500%`まで個別に伸縮できます。
-- テキストを1つ選択し、Ctrlを押しながら左右ハンドルをドラッグすると文字を横方向へ、上下ハンドルでは縦方向へ伸縮します。Ctrlなしのドラッグは従来どおりテキスト枠だけを変更します。
-- Ctrl+Cで選択中の吹き出し・テキストレイヤーを内部クリップボードへコピーし、Ctrl+Vで少しずらして貼り付けます。複数選択とグループ関係もまとめて複製されます。各レイヤーの`⋮`メニューにもCopy / Pasteがあります。文字入力欄の編集中は通常の文字コピー・貼り付けが優先されます。
-- 7つの開始形状すべてに、形状に適した変形設定と**Asymmetry**、**Randomize Shape**があります。
-- Shape IntensityまたはCloudinessを0にすると滑らかな楕円になり、値を上げると選択した開始形状の特徴が強くなります。
-- 旧Jagged Intensityを保存した既存レイアウトは自動移行します。
+## 保存・プレビュー
 
-## ノードプレビューの保持
+- **Save Layout** はレイアウトをノードへ保存し、最新プレビューを送信します。
+- 次回エディターを開くと、保存済みレイアウトを復元します。
+- ノードは最後に実行したプレビューを `output/speech_bubble_preview` に保持します。
+- 編集中のライブプレビューは、ワークフローをQueueするまでは現在のセッション用です。
 
-Speech Bubble Layerは、最後に実行したプレビューを`output/speech_bubble_preview`へ保持し、別のワークフロータブから戻った場合やComfyUI再起動後にも自動復元します。プレビューはノード・バッチ単位で同じファイルへ上書きするため、Queueのたびに増えません。エディターのライブプレビューは、ワークフローをQueueするまでは現在のセッション内だけで保持されます。
+## ノード仕様
 
-プレビュー復元を診断する場合は、ブラウザーコンソールで`localStorage.speech_bubble_preview_debug = "1"`を設定して再読み込みします。確認後にこのキーを削除するとデバッグ表示を停止できます。
+| ノード | 入力 | 出力 | 用途 |
+| --- | --- | --- | --- |
+| `Speech Bubble Layer` | `image`, `layout_json`, `font_path`, `supersample` | `layer`, `mask` | レイアウトから透明レイヤーとマスクを描画 |
+| `Speech Bubble Composite` | `image`, `layer`, `mask` | `image` | 元画像とレイヤーを合成 |
 
-## edge-repeatフレームの最小アセット
+- カテゴリー: `image/speech_bubble`
+- `supersample`: 1〜4。大きいほど描画が滑らかになりますが、処理は重くなります。
+- テキスト、Shape、SFX、スタンプ、フレームはレイアウトJSONに保存されます。
+- フレームは最前面に描画されますが、通常時はキャンバスのクリック操作を妨げません。
 
-`edge-repeat`フレームは`web/assets/frames/<frame_id>/manifest.json`から自動登録されます。実行用パッケージは`manifest.json`、`preview.webp`、`parts/`内の四隅・四辺WebPだけで構成できます。この描画モードでは`runtimeAsset`と`runtimeAsset2x`を省略できます。`nine-slice`と`full-overlay`では引き続き`runtimeAsset`が必要です。
+## 開発・確認
+
+基本的な確認は次で行えます。
+
+```powershell
+node tests/editor_geometry_test.mjs
+node tests/preview_lifecycle_test.mjs
+python -m py_compile __init__.py nodes_speech_bubble.py nodes_frame_cleanup.py
+```
+
+## トラブルシューティング
+
+- **追加した素材が表示されない**: フォルダーと `manifest.json` の配置、相対パス、アセットIDを確認してComfyUIを再起動します。
+- **古い画面が残る**: ブラウザーをハードリロードします。
+- **文字が異なる書体に見える**: 使用するフォントがOSにインストールされているか確認し、エディターを再度開きます。
+- **表示が重い**: 使わないドロワーを閉じ、必要に応じて `supersample` を下げます。
+
+## ライセンスと素材
+
+素材パックを追加する場合は、各素材の配布元・ライセンス条件を確認してください。透明WebPまたはPNGを基本とし、元画像のフリンジや不要な背景を残さない素材を推奨します。
