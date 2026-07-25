@@ -142,7 +142,7 @@ assert(html.includes('favoriteAssets("emphasis",EMPHASIS_PRESETS,["center","wide
 assert(!html.includes("syncEmphasisCenterGapControls"));
 assert(html.includes("syncEmphasisCenterGapMaster(item);updateSfxSwatches(item)"));
 const emphasisProps = html.match(
-  /<div id="emphasisProps" hidden>([\s\S]*?)\n        <\/div>\n        <details id="transformDetails"/,
+  /<div id="emphasisProps" hidden>([\s\S]*?)\r?\n        <\/div>\r?\n        <details id="transformDetails"/,
 )?.[1] || "";
 assert.strictEqual(
   (emphasisProps.match(/class="emphasis-control-row(?:\s|")/g) || []).length,

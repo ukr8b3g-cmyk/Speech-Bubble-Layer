@@ -1,4 +1,10 @@
+[English](#english)
+
+<a id="japanese"></a>
+
 # ComfyUI Speech Bubble
+
+日本語 | [English](#english)
 
 ComfyUI上で、画像へ**吹き出し・テキスト・オノマトペ・コミックスタンプ・装飾フレーム・集中線**を重ねるためのカスタムノードです。専用エディターで配置を作り、レイアウトを保存してからワークフローを実行します。
 
@@ -116,6 +122,30 @@ flowchart LR
 
 色はスウォッチから素早く統一できます。任意色が必要な場合は通常のカラーピッカーを使います。
 
+### 上部ツールバーと操作パッド
+
+| 操作 | 内容 |
+| --- | --- |
+| Undo / Redo | 直前の編集を取り消す／やり直す |
+| Fit / − / + | 画像全体を表示領域へ合わせる／ズーム倍率を変更する |
+| Cancel | 保存せずにエディターを閉じる |
+| Save Layout | レイアウトJSONと最新プレビューをノードへ保存する |
+| 8方向シャドウパッド | Drop Shadow内の矢印で影の方向を選ぶ。中央の`•`でオフセットを0に戻す |
+| Transform数値欄 | X / Y / W / H / Rotationを直接指定する。ホイールで増減、Shift + ホイールで10倍刻み |
+
+画面下部のヒントどおり、通常の角ハンドルは比率を保ち、**Shift + 角ハンドル**で自由変形します。緑色は回転、吹き出しの黄色は尻尾、集中線の黄色は注目中心の操作ハンドルです。
+
+### 主な設定
+
+| 対象 | 設定 |
+| --- | --- |
+| Text | Text、Font、Size、Text / Outline Color、Outline Width、Writing direction、Auto Fit、Bold / Italic / Underline / Strike、Tracking、Horizontal / Vertical Scale |
+| Speech Bubble | Preset、Tail、Fill / Stroke、Stroke Width、Opacity、Outline Style、形状調整、Edit Path、User Preset保存 |
+| SFX / Stamp / Shape | Size、Width / Height、Opacity、Fill / Outline Color、Outline Width |
+| Frame | Fit、Top、Border / Inner Outline、各辺の幅、Frame Scale、Inset、Overlay Fit、Drop Shadow、Outer Glow |
+| Emphasis Lines | Preset、Line Color、Opacity、Line Count、Center Gap、Line Width / Length / Taper、Random、Seed、Center X / Y |
+| Layers | 表示、ロック、複数選択、Group / Ungroup、コピー、複製、削除、順序変更 |
+
 ## 吹き出しの操作
 
 - 黄色いハンドルで、話者を示す尻尾（ポインター）の向きと長さを360度自由に調整できます。
@@ -221,6 +251,24 @@ web/assets/
 - テキスト、Shape、SFX、スタンプ、フレーム、Emphasis LinesはレイアウトJSONに保存されます。
 - フレームは最前面に描画されますが、通常時はキャンバスのクリック操作を妨げません。
 
+## 実ファイル・セットアップ関連リンク
+
+| 種類 | リンク |
+| --- | --- |
+| GitHubリポジトリ | [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer) |
+| mainのZIP | [Source code ZIP](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer/archive/refs/heads/main.zip) |
+| サンプルワークフロー | [examples/Speech_Bubble_test_workflow.json](examples/Speech_Bubble_test_workflow.json) |
+| ComfyUI登録・セットアップ入口 | [__init__.py](__init__.py) |
+| ComfyUIフロントエンド拡張 | [web/js/speech_bubble.js](web/js/speech_bubble.js) |
+| エディター本体 | [web/speech-bubble-editor.html](web/speech-bubble-editor.html) |
+| Python描画・ノード本体 | [nodes_speech_bubble.py](nodes_speech_bubble.py) |
+| 素材パック仕様 | [web/assets/README.md](web/assets/README.md) |
+| フレーム素材仕様 | [web/assets/frames/README.md](web/assets/frames/README.md) |
+| 配布ファイル一覧 | [RELEASE_FILE_LIST.txt](RELEASE_FILE_LIST.txt) |
+| 確認項目 | [VERIFICATION.md](VERIFICATION.md) |
+
+手動セットアップでは、ZIPを展開したフォルダー名を `ComfyUI-Speech-Bubble` にし、`ComfyUI/custom_nodes/` 直下へ配置してください。最終的に `ComfyUI/custom_nodes/ComfyUI-Speech-Bubble/__init__.py` が存在する階層なら正しい配置です。
+
 ## 開発・確認
 
 基本的な確認は次で行えます。
@@ -241,3 +289,257 @@ python -m py_compile __init__.py nodes_speech_bubble.py nodes_frame_cleanup.py
 ## ライセンスと素材
 
 素材パックを追加する場合は、各素材の配布元・ライセンス条件を確認してください。透明WebPまたはPNGを基本とし、元画像のフリンジや不要な背景を残さない素材を推奨します。
+
+---
+
+<a id="english"></a>
+
+# ComfyUI Speech Bubble — English
+
+[日本語](#japanese) | English
+
+This custom node overlays **speech bubbles, text, onomatopoeia/SFX, comic stamps, decorative frames, and emphasis lines** on an image in ComfyUI. Build the composition in the dedicated editor, save the layout, and then run the workflow.
+
+The node outputs a transparent `layer` and `mask`. Connect them to `Speech Bubble Composite` when you want the final image composited over the source.
+
+## Start here
+
+Click the green **Open Speech Bubble Editor** button on the `Speech Bubble Layer` node. All bubble, text, and decoration editing starts in this editor.
+
+The screenshots at the beginning of this README show the launch button, editor, workflow, and font browser. Click an image to open it at full size.
+
+## Installation
+
+Stop ComfyUI, open its `custom_nodes` folder, and run:
+
+```powershell
+git clone https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer.git ComfyUI-Speech-Bubble
+```
+
+To update an existing installation, run this inside the installed folder:
+
+```powershell
+git pull
+```
+
+Start or restart ComfyUI, then hard-refresh the browser. For a manual ZIP installation, see [Files and setup links](#files-and-setup-links).
+
+## Main features
+
+- **Speech bubbles and text:** edit the tail, dialogue, font, colors, outline, and size. A newly inserted bubble is placed below the text layer.
+- **Typography:** Tracking, Horizontal / Vertical Scale, bold, italic, underline, strike, horizontal / vertical writing, and Auto Fit.
+- **Assets:** included bubbles, basic shapes, SFX, comic stamps, and frames.
+- **Emphasis Lines:** Center, Wide, Tall, and One Side presets with adjustable gap, count, width, length, randomness, seed, and focus position.
+- **Color and effects:** separate fill and outline controls, shared swatches, drop shadows, frame inner outlines, and outer glow.
+- **Layers:** show/hide, lock, multi-select, group, copy, duplicate, delete, and reorder.
+- **Asset browsing:** recommended/related, usage, and name sorting. Favorites appear first in the compact quick lists.
+
+This editor is designed to decorate one image. It is not a multi-panel comic-page generator.
+
+## Basic workflow
+
+### Node connections
+
+```mermaid
+flowchart LR
+    A["1. Load Image"] -->|"IMAGE → image"| B["2. Speech Bubble Layer"]
+    A -->|"IMAGE → image"| C["3. Speech Bubble Composite"]
+    B -->|"layer → layer"| C
+    B -->|"mask → mask"| C
+    C -->|"image → images"| D["4. Preview / Save Image"]
+```
+
+**Sample workflow:** [Speech_Bubble_test_workflow.json](examples/Speech_Bubble_test_workflow.json)
+
+Drag the downloaded JSON onto the ComfyUI canvas and select your own source in `Load Image`.
+
+1. Connect `Load Image: IMAGE` to `Speech Bubble Layer: image`.
+2. Branch the same `IMAGE` to `Speech Bubble Composite: image`.
+3. Connect `Speech Bubble Layer: layer` and `mask` to the matching Composite inputs.
+4. Connect `Speech Bubble Composite: image` to Preview or `Save Image`.
+
+### Editing sequence
+
+1. Click **Open Speech Bubble Editor** on the `Speech Bubble Layer` node.
+2. Add a bubble, text, SFX, stamp, frame, or Emphasis Lines from the left panel.
+3. Move, resize, and rotate it on the canvas.
+4. Edit text, color, outline, effects, and exact values in Properties.
+5. Click **Save Layout** to store the editor state in the node.
+6. Queue the ComfyUI workflow and inspect the `Speech Bubble Composite` result.
+
+`Speech Bubble Layer` also shows its own preview. Use `Speech Bubble Composite` when the merged image must continue to downstream nodes.
+
+## Editor panels
+
+### Left panel: asset lists
+
+- **Speech Bubbles:** bubbles, basic shapes, colored shapes, and user presets.
+- **Onomatopoeia / SFX:** comic sound-effect artwork.
+- **Comic Stamps / Symbols:** arrows, marks, emotions, and decorations.
+- **Frames:** borders and foreground overlay frames.
+- **Emphasis Lines:** full-canvas radial emphasis presets.
+- **+ Text:** inserts an independent text layer.
+
+Click a card to add it, or drag supported cards to place them directly. Use **Browse…** to search and filter the full catalog. The star marks a favorite; up to two favorites are shown in each quick list.
+
+### Center: canvas
+
+- Click to select and drag to move.
+- Use the eight surrounding handles to resize and the green handle to rotate.
+- Standard corner resizing preserves the aspect ratio; hold **Shift** for free transform.
+- Use the mouse wheel to zoom. Pan with the middle mouse button or Space + drag.
+- Frames and Emphasis Lines normally pass canvas clicks through to lower layers. Select them in Layers for direct editing.
+
+### Right panel: Properties and Layers
+
+- **Properties:** shows controls for the selected Text, Speech Bubble, SFX/Stamp/Shape, Frame, or Emphasis Lines layer.
+- **Transform:** exact X, Y, W, H, and Rotation values.
+- **Drop Shadow:** color, direction pad, X/Y offset, and blur.
+- **Layers:** visibility, lock state, selection, grouping, order, copy, duplicate, and delete.
+
+Properties and Layers can be collapsed. Drag the divider between them to change their vertical allocation.
+
+## Toolbar and operation pads
+
+| Control | Action |
+| --- | --- |
+| Undo / Redo | Revert or restore the latest editor action |
+| Fit / − / + | Fit the image to the viewport or change zoom |
+| Cancel | Close without saving the current editor changes |
+| Save Layout | Save the layout JSON and latest preview back to the node |
+| Eight-direction shadow pad | Choose the shadow direction; the center `•` resets the offset to zero |
+| Transform numeric fields | Set X / Y / W / H / Rotation exactly; wheel adjusts a value and Shift + wheel uses 10× steps |
+
+The yellow bubble handle controls its tail. The yellow Emphasis Lines handle controls the focus point.
+
+## Settings reference
+
+| Layer | Main settings |
+| --- | --- |
+| Text | Text, Font, Size, Text / Outline Color, Outline Width, Writing direction, Auto Fit, Bold / Italic / Underline / Strike, Tracking, Horizontal / Vertical Scale |
+| Speech Bubble | Preset, Tail, Fill / Stroke, Stroke Width, Opacity, Outline Style, shape tuning, Edit Path, Save as User Preset |
+| SFX / Stamp / Shape | Size, Width / Height, Opacity, Fill / Outline Color, Outline Width |
+| Frame | Fit, Top, Border / Inner Outline, side widths, Frame Scale, Inset, Overlay Fit, Drop Shadow, Outer Glow |
+| Emphasis Lines | Preset, Line Color, Opacity, Line Count, Center Gap, Line Width / Length / Taper, Random, Seed, Center X / Y |
+| Layers | Show/hide, lock, multi-select, Group / Ungroup, copy, duplicate, delete, and order |
+
+`Outline Width = 0` disables the outline. The Size control for SFX, stamps, and shapes changes width and height together while preserving the current aspect ratio.
+
+## Speech bubble controls
+
+- Drag the yellow handle through 360 degrees to point the tail at the speaker and change its length.
+- Move the tail into the bubble body to hide it.
+- The same interaction positions the dots on thought bubbles.
+- Outline Style supports the styles exposed by the selected preset.
+- Use **Save as User Preset…** to reuse a shape. It saves shape geometry and parameters, not dialogue, position, colors, or canvas size.
+- Use **Edit Path**, **+ Point**, and **− Point** for direct Bézier-path editing where supported.
+
+## Text controls
+
+- Add text with **+ Text** or the **T** key.
+- Tracking changes only character spacing: negative values tighten and positive values expand.
+- Horizontal / Vertical Scale stretches the glyphs themselves.
+- Bold, Italic, Underline, Strike, horizontal/vertical writing, and Auto Fit are available.
+- With one text layer selected, **Ctrl + drag a left/right handle** stretches glyphs horizontally; **Ctrl + drag a top/bottom handle** stretches them vertically.
+- `Ctrl+C` / `Ctrl+V` copies and pastes selected layers while preserving multi-selection and group relationships.
+
+## Emphasis Lines
+
+Emphasis Lines are editor layers inside `Speech Bubble Layer`, not a separate ComfyUI node.
+
+1. Add a preset from **Emphasis Lines**.
+2. Select the new `Emphasis — ...` entry in Layers.
+3. Adjust **Center Gap** to clear space around the subject.
+4. Drag the yellow center handle to the focus point.
+5. Tune the line count, width, length, color, or randomness and click **Save Layout**.
+
+| Preset | Typical use |
+| --- | --- |
+| Center | Balanced focus toward the canvas center |
+| Wide | Faces, upper bodies, or other wide subjects |
+| Tall | Full-body or other tall subjects |
+| One Side | Focus entering from one side or outside the frame |
+
+Center Gap scales X and Y together while preserving their ratio; Center Gap X/Y fine-tune them independently. The same Seed and settings reproduce the same rays. Generated rays are stored in the layout JSON so the editor, `layer`, and `mask` outputs stay aligned.
+
+## Layer operations
+
+- Ctrl-click or Shift-click for multi-selection.
+- Group / Ungroup combines or separates layers.
+- Alt-click selects one layer inside a group; Alt-drag moves it independently.
+- Use the eye and lock buttons for visibility and edit protection.
+- Open the layer options menu for Copy, Paste, Duplicate, or Delete.
+
+## Adding asset packs
+
+Place one pack per folder under its category:
+
+```text
+web/assets/
+├─ shapes/<pack-id>/manifest.json
+├─ sfx/<pack-id>/manifest.json
+└─ frames/<pack-id>/manifest.json
+```
+
+Each `manifest.json` must use paths relative to its pack folder. Restart ComfyUI after adding assets. Keep asset IDs stable because a later definition with the same ID takes precedence.
+
+See [web/assets/README.md](web/assets/README.md) for the general pack format. Frame packs support `nine-slice`, `full-overlay`, `edge-repeat`, and `decorated-border`; see [web/assets/frames/README.md](web/assets/frames/README.md).
+
+## Save and preview behavior
+
+- **Save Layout** writes the layout to the node and sends the latest preview.
+- Reopening the editor restores the saved layout.
+- The node keeps its last executed preview under `output/speech_bubble_preview`.
+- Live previews during editing belong to the current session until the workflow is queued.
+- Interactive canvas rendering is batched for responsiveness; full preview transmission is deferred until a committed edit.
+
+## Node reference
+
+| Node | Inputs | Outputs | Purpose |
+| --- | --- | --- | --- |
+| `Speech Bubble Layer` | `image`, `layout_json`, `font_path`, `supersample` | `layer`, `mask` | Render a transparent decoration layer and mask from the saved layout |
+| `Speech Bubble Composite` | `image`, `layer`, `mask` | `image` | Composite the layer over the source image |
+
+- Category: `image/speech_bubble`
+- `supersample`: 1–4. Higher values improve render smoothness but require more processing.
+- Text, shapes, SFX, stamps, frames, and Emphasis Lines are saved in the layout JSON.
+
+## Files and setup links
+
+| Item | Link |
+| --- | --- |
+| GitHub repository | [Speech-Bubble-Layer](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer) |
+| ZIP of `main` | [Source code ZIP](https://github.com/ukr8b3g-cmyk/Speech-Bubble-Layer/archive/refs/heads/main.zip) |
+| Sample workflow | [examples/Speech_Bubble_test_workflow.json](examples/Speech_Bubble_test_workflow.json) |
+| ComfyUI registration/setup entry | [__init__.py](__init__.py) |
+| ComfyUI frontend extension | [web/js/speech_bubble.js](web/js/speech_bubble.js) |
+| Editor implementation | [web/speech-bubble-editor.html](web/speech-bubble-editor.html) |
+| Python renderer and nodes | [nodes_speech_bubble.py](nodes_speech_bubble.py) |
+| Asset-pack specification | [web/assets/README.md](web/assets/README.md) |
+| Frame-pack specification | [web/assets/frames/README.md](web/assets/frames/README.md) |
+| Distribution file list | [RELEASE_FILE_LIST.txt](RELEASE_FILE_LIST.txt) |
+| Verification notes | [VERIFICATION.md](VERIFICATION.md) |
+
+For a manual ZIP setup, rename the extracted folder to `ComfyUI-Speech-Bubble` and place it directly under `ComfyUI/custom_nodes/`. The final path must contain `ComfyUI/custom_nodes/ComfyUI-Speech-Bubble/__init__.py`.
+
+## Development and verification
+
+Run the relevant checks from the repository root:
+
+```powershell
+node tests/editor_geometry_test.mjs
+node tests/render_optimization_test.mjs
+node tests/preview_lifecycle_test.mjs
+python -m py_compile __init__.py nodes_speech_bubble.py nodes_frame_cleanup.py
+```
+
+## Troubleshooting
+
+- **New assets do not appear:** check the folder, `manifest.json`, relative paths, and asset IDs, then restart ComfyUI.
+- **The old editor remains:** hard-refresh the browser.
+- **Text uses a different typeface:** confirm that the font is installed in the OS and reopen the editor.
+- **The editor feels heavy:** close unused drawers and lower `supersample` if needed.
+
+## License and assets
+
+Before distributing additional packs, check each asset's source and license. Transparent WebP or PNG is recommended; remove background residue and edge fringing from source artwork.
