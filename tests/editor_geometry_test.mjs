@@ -87,8 +87,13 @@ assert.ok(trackingStart >= 0 && trackingEnd > trackingStart);
 const trackingContext = vm.createContext({
   ctx:{
     font:"",
+    calls:[],
     save(){},
     restore(){},
+    translate(...args){this.calls.push(["translate",...args]);},
+    rotate(...args){this.calls.push(["rotate",...args]);},
+    strokeText(...args){this.calls.push(["strokeText",...args]);},
+    fillText(...args){this.calls.push(["fillText",...args]);},
     measureText(text){return { width:text==="AV"?18:[...String(text)].length*10 };},
   },
   integerFontSize:value=>Math.max(1,Math.floor(Number(value)||48)),
@@ -97,6 +102,10 @@ const trackingContext = vm.createContext({
   textPadding:()=>4,
 });
 vm.runInContext(`${html.slice(trackingStart, trackingEnd)};this.measureTrackedText=measureTrackedText;this.textContentSize=textContentSize;this.fitTextBox=fitTextBox;`, trackingContext);
+const verticalStart = html.indexOf("function verticalGlyphRotation");
+const verticalEnd = html.indexOf("function drawText", verticalStart);
+assert.ok(verticalStart >= 0 && verticalEnd > verticalStart);
+vm.runInContext(`${html.slice(verticalStart, verticalEnd)};this.verticalGlyphRotation=verticalGlyphRotation;this.drawVerticalGlyph=drawVerticalGlyph;`, trackingContext);
 assert.equal(trackingContext.measureTrackedText("AV", 0), 18);
 assert.equal(trackingContext.measureTrackedText("AB", -5), 15);
 assert.equal(trackingContext.measureTrackedText("AB", 5), 25);
@@ -111,6 +120,15 @@ const verticalBase = trackingContext.textContentSize({ ...horizontal, text:"ABC"
 const verticalSpaced = trackingContext.textContentSize({ ...horizontal, text:"ABC", writing:"vertical-rl", tracking:100 });
 assert.equal(verticalSpaced.w, verticalBase.w);
 assert.ok(verticalSpaced.h > verticalBase.h);
+assert.equal(trackingContext.verticalGlyphRotation("2"), 0);
+assert.equal(trackingContext.verticalGlyphRotation("ー"), Math.PI / 2);
+assert.equal(trackingContext.verticalGlyphRotation("－"), Math.PI / 2);
+trackingContext.ctx.calls.length=0;
+trackingContext.drawVerticalGlyph("2",10,120,5,100,80,0);
+assert.deepEqual(trackingContext.ctx.calls, [["fillText","2",65,5]]);
+trackingContext.ctx.calls.length=0;
+trackingContext.drawVerticalGlyph("ー",10,120,5,100,80,0);
+assert.deepEqual(trackingContext.ctx.calls, [["translate",70,55],["rotate",Math.PI/2],["fillText","ー",-5,-40]]);
 assert.ok(!html.includes('id:"base-melting"'));
 assert.ok(!html.includes('id:"base-hexagon"'));
 assert.ok(html.includes('function meltingPath(intensity=0)'));

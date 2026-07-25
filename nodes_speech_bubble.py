@@ -1359,6 +1359,52 @@ def _draw_spaced_text(draw, x, y, text, font, fill, stroke_width, stroke_fill, l
     return cursor - x
 
 
+def _vertical_glyph_rotation(character):
+    return math.pi / 2 if character in "ー−－—―-" else 0.0
+
+
+def _draw_vertical_glyph(surface, draw, x, y, column_width, line_height, character, font, fill, stroke_width, stroke_fill, bold=False):
+    character = str(character or "")
+    if not character:
+        return
+    bbox = draw.textbbox((0, 0), character, font=font, stroke_width=stroke_width)
+    glyph_width = max(1, bbox[2] - bbox[0])
+    if not _vertical_glyph_rotation(character):
+        _draw_spaced_text(
+            draw,
+            x + (column_width - glyph_width) / 2,
+            y,
+            character,
+            font,
+            fill,
+            stroke_width,
+            stroke_fill,
+            0,
+            bold,
+        )
+        return
+    padding = max(2, stroke_width * 2)
+    glyph_height = max(1, bbox[3] - bbox[1])
+    tile = Image.new("RGBA", (glyph_width + padding * 2, glyph_height + padding * 2), (0, 0, 0, 0))
+    tile_draw = ImageDraw.Draw(tile)
+    _draw_spaced_text(
+        tile_draw,
+        padding - bbox[0],
+        padding - bbox[1],
+        character,
+        font,
+        fill,
+        stroke_width,
+        stroke_fill,
+        0,
+        bold,
+    )
+    rotated = tile.rotate(90, expand=True)
+    paste_x = int(round(x + (column_width - rotated.width) / 2))
+    paste_y = int(round(y + (line_height - rotated.height) / 2))
+    surface.alpha_composite(rotated, (paste_x, paste_y))
+
+
 def _spaced_text_width(draw, text, font, letter_spacing=0):
     chars = list(str(text or ""))
     if not chars:
@@ -1928,7 +1974,7 @@ def _draw_text_layer(layer, element, default_font_path, scale):
                 cx = local.width - padding_x - (column_index + 1) * char_w
             for char_index, char in enumerate(chars):
                 cy = padding_y + char_index * char_h
-                _draw_spaced_text(draw, cx, cy, char, font, color, stroke_width, stroke_color, 0, bold)
+                _draw_vertical_glyph(local, draw, cx, cy, char_w, char_h, char, font, color, stroke_width, stroke_color, bold)
     else:
         wrap = bool(element.get("wrap", False))
         lines = _wrap_lines(measure, text, font, max(1, logical_box_w - padding_x * 2), letter_spacing) if wrap else text.split("\n")

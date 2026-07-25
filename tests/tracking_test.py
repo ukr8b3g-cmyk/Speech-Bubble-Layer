@@ -47,5 +47,8 @@ assert [call[1] for call in spaced_draw.calls] == ["A", "B"]
 assert module._wrap_lines(measure, "ABC", font, 30, 5) == ["AB", "C"]
 assert module._wrap_lines(measure, "ABC", font, 30, -2) == ["ABC"]
 assert module._wrap_lines(measure, "AB\nCD", font, 100, 20) == ["AB", "CD"]
+assert module._vertical_glyph_rotation("2") == 0
+assert module._vertical_glyph_rotation("ー") == module.math.pi / 2
+assert module._vertical_glyph_rotation("－") == module.math.pi / 2
 
 print("tracking measurement, drawing, and wrapping: pass")
