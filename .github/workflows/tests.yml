@@ -1,0 +1,41 @@
+name: Editor and renderer tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CPU test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check numpy pillow
+          python -m pip install --disable-pip-version-check torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Syntax checks
+        run: |
+          node --input-type=module --check < web/js/speech_bubble.js
+          python -m py_compile __init__.py nodes_speech_bubble.py nodes_frame_cleanup.py
+      - name: JavaScript tests
+        run: |
+          for test in tests/*_test.mjs tests/*_test.cjs; do
+            node "$test"
+          done
+      - name: Python tests
+        run: |
+          for test in tests/*_test.py; do
+            python "$test"
+          done

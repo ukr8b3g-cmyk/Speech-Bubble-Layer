@@ -4,7 +4,7 @@ import vm from "node:vm";
 
 let extension;
 const windowListeners = new Map();
-const popup = { closed: false };
+const popup = { closed: false, postMessage() {} };
 const mockWindow = {
   addEventListener(type, callback) { windowListeners.set(type, callback); },
   setTimeout(callback) { callback(); },
@@ -39,7 +39,7 @@ const source = fs.readFileSync(sourcePath, "utf8").replace(/^import .*;\r?\n/gm,
 vm.runInContext(source, context, { filename: "speech_bubble.js" });
 assert.match(source, /function clearPreview\(node, options = \{\}\)/);
 assert.match(source, /clearPreview\(node, \{ clearPersistent: true \}\)/);
-assert.match(source, /applyLayout\(node, data\.layout_json \|\| \"\{\}\", data\.preview_data_url \|\| \"\"\s*,\s*data\.revision\)/);
+assert.match(source, /applyLayout\(node, data\.layout_json, data\.preview_data_url, data\.revision\)/);
 assert.match(source, /else if \(inputSource\) showCurrentInputPreview\(this, inputSource\)/);
 assert.match(source, /speech_bubble:cancel_editor/);
 assert.match(source, /PREVIEW_DATA_PROPERTY/);
@@ -144,7 +144,21 @@ editable.editorButton.callback();
 const editorUrl = new URL(mockWindow.lastOpen, "http://localhost");
 const editorKey = editorUrl.searchParams.get("jsonKey");
 assert.ok(Number(editorUrl.searchParams.get("revisionBase")) >= 1);
-const messageHandler = windowListeners.get("message");
+const rawMessageHandler = windowListeners.get("message");
+const connectKey = (key) => rawMessageHandler({
+  data: { type: "speech_bubble:connect_editor", key, connectionId: "test-" + key },
+  source: popup, origin: "http://localhost",
+});
+const messageHandler = (event) => {
+  const key = event.data.key;
+  const data = { ...event.data, connectionId: "test-" + key, requestId: "save-" + key };
+  rawMessageHandler({ ...event, data, source: popup, origin: "http://localhost" });
+  if (data.type === "speech_bubble:set_layout_json") rawMessageHandler({
+    data: { type: "speech_bubble:editor_committed", key, connectionId: data.connectionId, requestId: data.requestId },
+    source: popup, origin: "http://localhost",
+  });
+};
+connectKey(editorKey);
 messageHandler({ data: { type: "speech_bubble:live_preview", key: editorKey, revision: 2, preview_data_url: "data:image/png;base64,LIVE-2" } });
 messageHandler({ data: { type: "speech_bubble:live_preview", key: editorKey, revision: 1, preview_data_url: "data:image/png;base64,LIVE-1" } });
 await new Promise((resolve) => setImmediate(resolve));
@@ -155,6 +169,7 @@ assert.match(editable.imgs[0].src, /speech_bubble_2_0\.png/);
 
 editable.editorButton.callback();
 const saveKey = new URL(mockWindow.lastOpen, "http://localhost").searchParams.get("jsonKey");
+connectKey(saveKey);
 const emptyLayout = '{"version":1,"elements":[]}';
 messageHandler({
   data: { type: "speech_bubble:set_layout_json", key: saveKey, revision: 6, layout_json: emptyLayout, preview_data_url: "data:image/png;base64,SAVED" },
@@ -170,6 +185,7 @@ assert.equal(editable.properties.speech_bubble_preview_revision, 6);
 
 editable.editorButton.callback();
 const staleSaveKey = new URL(mockWindow.lastOpen, "http://localhost").searchParams.get("jsonKey");
+connectKey(staleSaveKey);
 messageHandler({
   data: { type: "speech_bubble:set_layout_json", key: staleSaveKey, revision: 5, layout_json: '{"version":1,"elements":[{"id":"stale"}]}', preview_data_url: "data:image/png;base64,STALE" },
   source: { postMessage() {} },

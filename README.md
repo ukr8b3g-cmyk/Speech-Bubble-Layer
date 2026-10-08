@@ -239,6 +239,18 @@ web/assets/
 - ノードは最後に実行したプレビューを `output/speech_bubble_preview` に保持します。
 - 編集中のライブプレビューは、ワークフローをQueueするまでは現在のセッション用です。
 
+
+### 保存の確認と下書きの復元
+
+Save Layout は元のノードから確認応答を受け取ってからエディターを閉じます。応答が遅れた場合は「Save is not yet confirmed」と表示されます。**Retry Save** は同じ保存要求を再送するため、応答が失われてもレイアウトを重複して適用しません。待機中に追加した編集は、先の保存が確認されても閉じずに残ります。
+
+元の ComfyUI タブまたはエディターを再読み込みした場合、保存先のノードと開始時のレイアウトが一致すれば自動で再接続します。ワークフローが変わった、ノードがなくなった、または復旧記録が利用できない場合は保存を拒否します。元タブを開いたままにしてください。再読み込み後の再接続には、元のノードを保持したワークフローの復元が必要です。
+
+編集内容はブラウザーに下書きとして保持します。エディターを閉じたり再読み込みしたりしても下書きを削除せず、同じノードの **Open Speech Bubble Editor** から開き直すと復元します。復旧記録は最後の操作から24時間、最大16件です。期限切れや件数の上限を超えた古い、閉じているセッションは整理されます。**Cancel** は下書きを破棄します。確認済みの保存後も下書きを削除します。
+
+ブラウザーの保存領域が利用できなくても、その場の保存は続けられます。ただし再読み込み後の復元は保証できません。**Download layout JSON** で編集内容をファイルへ退避できます。ノードの内容が変わって再接続できない場合も、まずこのボタンで退避してください。ノードへ保存した後は、ComfyUI のワークフローも保存してください。
+
+
 ## ノード仕様
 
 | ノード | 入力 | 出力 | 用途 |
@@ -276,6 +288,7 @@ web/assets/
 ```powershell
 node tests/editor_geometry_test.mjs
 node tests/preview_lifecycle_test.mjs
+node tests/editor_save_protocol_test.mjs
 python -m py_compile __init__.py nodes_speech_bubble.py nodes_frame_cleanup.py
 ```
 
@@ -492,6 +505,18 @@ See [web/assets/README.md](web/assets/README.md) for the general pack format. Fr
 - The node keeps its last executed preview under `output/speech_bubble_preview`.
 - Live previews during editing belong to the current session until the workflow is queued.
 - Interactive canvas rendering is batched for responsiveness; full preview transmission is deferred until a committed edit.
+
+
+### Save confirmation and recovery drafts
+
+Save Layout closes the editor after the original node confirms the save. If confirmation is late, the editor shows “Save is not yet confirmed”. **Retry Save** resends the same immutable request, so a missing acknowledgement does not apply the layout twice. Edits made while waiting stay open after the earlier save is confirmed.
+
+Reloading the editor or the original ComfyUI tab reconnects when the same node and its starting layout can be verified. Reconnection refuses to save into a changed workflow, a missing node, or an unavailable recovery session. Keep the original tab open; reloading it must restore the workflow containing the original node.
+
+Recovery drafts survive editor reloads and closing. Reopen **Open Speech Bubble Editor** on the same node to recover a draft. Recovery records last 24 hours after the last activity and are limited to 16 sessions. Expired or excess older closed sessions are cleaned up. **Cancel** explicitly discards the draft, and a confirmed save removes it.
+
+Saving can continue when browser recovery storage is unavailable, but recovery after a reload cannot be guaranteed. Use **Download layout JSON** to keep a file backup, including when a changed node prevents reconnection. Save the ComfyUI workflow after saving the layout into its node.
+
 
 ## Node reference
 

@@ -109,33 +109,211 @@ function editorBaselineSources(node) {
   return (Array.isArray(node?.imgs) ? node.imgs : []).map((image) => image?.src).filter(Boolean);
 }
 
-function finishEditorSession(key, restore = false) {
+
+const EDITOR_RECORD_PREFIX = "speech_bubble:editor_session:v2:";
+const EDITOR_NODE_PROPERTY = "speech_bubble_editor_id";
+const EDITOR_SESSION_TTL = 24 * 60 * 60 * 1000;
+const MAX_EDITOR_SESSIONS = 16;
+const MAX_SAVE_RECEIPTS = 4;
+
+function editorNonce() {
+  return globalThis.crypto?.randomUUID?.()
+    || Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+}
+
+function editorNodeKey(node) {
+  node.properties ||= {};
+  if (!node.properties[EDITOR_NODE_PROPERTY]) {
+    setNodeProperty(node, EDITOR_NODE_PROPERTY, editorNonce());
+    node.graph?.change?.();
+  }
+  return String(node.properties[EDITOR_NODE_PROPERTY]);
+}
+
+function editorRecordKey(key) { return EDITOR_RECORD_PREFIX + key; }
+function validEditorKey(key) { return typeof key === "string" && /^speech_bubble_[\w-]+$/.test(key); }
+
+function readEditorRecord(key) {
+  if (!validEditorKey(key)) return null;
+  try {
+    const record = JSON.parse(localStorage.getItem(editorRecordKey(key)) || "null");
+    if (record?.version !== 2 || record.key !== key || !record.nodeKey
+        || typeof record.baseline !== "string" || !Number.isFinite(record.expiresAt)) return null;
+    return record;
+  } catch { return null; }
+}
+
+function writeEditorRecord(record) {
+  record.updatedAt = Date.now();
+  record.expiresAt = record.updatedAt + EDITOR_SESSION_TTL;
+  try { localStorage.setItem(editorRecordKey(record.key), JSON.stringify(record)); return true; }
+  catch { return false; }
+}
+
+function discardEditorRecord(key) {
+  if (!validEditorKey(key)) return;
+  try {
+    localStorage.removeItem(editorRecordKey(key));
+    localStorage.removeItem(key);
+    localStorage.removeItem(key + ":pending_save:v2");
+  } catch {}
+}
+
+function storedEditorRecords() {
+  const records = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const name = localStorage.key(i);
+      if (!name?.startsWith(EDITOR_RECORD_PREFIX)) continue;
+      const record = readEditorRecord(name.slice(EDITOR_RECORD_PREFIX.length));
+      if (record) records.push(record);
+    }
+  } catch {}
+  return records;
+}
+
+function pruneEditorRecords() {
+  const now = Date.now();
+  for (const record of storedEditorRecords()) {
+    const popup = editorSessions.get(record.key)?.popup;
+    // An open editor owns its draft; expiry must not delete it during an edit.
+    if (record.expiresAt <= now && (!popup || popup.closed)) discardEditorRecord(record.key);
+  }
+  const retained = storedEditorRecords().sort((a, b) => a.updatedAt - b.updatedAt);
+  while (retained.length > MAX_EDITOR_SESSIONS) {
+    const index = retained.findIndex(record => {
+      const popup = editorSessions.get(record.key)?.popup;
+      return !popup || popup.closed;
+    });
+    if (index < 0) break;
+    discardEditorRecord(retained.splice(index, 1)[0].key);
+  }
+}
+
+function matchingEditorNode(record) {
+  const node = app.graph?.getNodeById?.(record.nodeId)
+    || app.graph?.getNodeById?.(Number(record.nodeId));
+  if (!node?.graph || !getWidget(node, "layout_json")
+      || String(node.properties?.[EDITOR_NODE_PROPERTY] || "") !== record.nodeKey) return null;
+  return node;
+}
+
+function finishEditorSession(key, restore = false, discard = false) {
   const session = editorSessions.get(key);
   const node = editorTargets.get(key);
   if (session?.watcher) window.clearInterval?.(session.watcher);
   if (node?._speechBubbleEditorWindow === session?.popup) node._speechBubbleEditorWindow = null;
   editorSessions.delete(key);
   editorTargets.delete(key);
-  if (!restore || !node) return;
+  if (discard) discardEditorRecord(key);
+  if (!restore || !node || !session) return;
   clearPreview(node);
   node._speechBubblePreviewUrls = [...session.sources];
   if (session.sources.length) restorePreview(node, session.sources);
   else if (session.inputSource) showCurrentInputPreview(node, session.inputSource);
 }
 
-function beginEditorSession(key, node, popup) {
+function beginEditorSession(key, node, popup, record) {
+  const previous = editorSessions.get(key);
+  if (previous?.watcher) window.clearInterval?.(previous.watcher);
   const session = {
-    sources: editorBaselineSources(node),
-    inputSource: currentInputSource(node),
-    popup,
-    watcher: null,
+    sources: editorBaselineSources(node), inputSource: currentInputSource(node),
+    popup, record, connectionId: null, watcher: null,
+    receipts: Array.isArray(record.receipts) ? record.receipts.slice(-MAX_SAVE_RECEIPTS) : [],
   };
   editorTargets.set(key, node);
   editorSessions.set(key, session);
+  node._speechBubbleEditorWindow = popup;
   if (popup && window.setInterval) {
     session.watcher = window.setInterval(() => {
       if (popup.closed) finishEditorSession(key, true);
     }, 250);
+  }
+  return session;
+}
+
+function replyToEditor(event, data) {
+  try { event.source?.postMessage(data, event.origin || "*"); }
+  catch (error) { debugPreview("editor acknowledgement could not be sent", String(error)); }
+}
+
+function connectEditor(event, data) {
+  const respond = (connected, reason = "", revision = 0) => replyToEditor(event, {
+    type: "speech_bubble:editor_connected", key: data.key, connectionId: data.connectionId,
+    connected, reason, revision, attemptId: data.attemptId,
+  });
+  if (!validEditorKey(data.key) || typeof data.connectionId !== "string" || !data.connectionId || !event.source) return;
+  let session = editorSessions.get(data.key);
+  const record = session?.record || readEditorRecord(data.key);
+  if (!record) { respond(false, "session_missing"); return; }
+  if (record.expiresAt <= Date.now()) { respond(false, "session_expired"); return; }
+  const node = editorTargets.get(data.key) || matchingEditorNode(record);
+  if (!node?.graph || String(node.properties?.[EDITOR_NODE_PROPERTY] || "") !== record.nodeKey
+      || String(node.id) !== String(record.nodeId)) { respond(false, "node_missing"); return; }
+  if (session?.popup && session.popup !== event.source && !session.popup.closed) {
+    respond(false, "editor_in_use"); return;
+  }
+  if (currentLayout(node) !== record.baseline) { respond(false, "layout_changed"); return; }
+  if (!session) {
+    if (editorSessions.size >= MAX_EDITOR_SESSIONS) { respond(false, "editor_limit"); return; }
+    session = beginEditorSession(data.key, node, event.source, record);
+  }
+  session.connectionId = data.connectionId;
+  writeEditorRecord(record);
+  respond(true, "", Math.max(latestPreviewRevision(node), previewRevision(node.properties?.[PREVIEW_REVISION_PROPERTY])));
+}
+
+function applyEditorSave(event, data, session, node) {
+  const reply = (applied, reason = "") => replyToEditor(event, {
+    type: "speech_bubble:layout_applied", key: data.key, connectionId: data.connectionId,
+    requestId: data.requestId, applied, reason, revision: latestPreviewRevision(node),
+  });
+  if (typeof data.requestId !== "string" || !data.requestId
+      || typeof data.layout_json !== "string" || typeof data.preview_data_url !== "string"
+      || !Number.isFinite(data.revision) || data.revision < 0) { reply(false, "invalid_request"); return; }
+  const payload = JSON.stringify([data.layout_json, data.preview_data_url, data.revision]);
+  const receipt = session.receipts.find(value => value.requestId === data.requestId);
+  if (receipt) {
+    if (receipt.payload !== payload) { reply(false, "request_changed"); return; }
+    // Re-acknowledgement never rewrites a node changed since the original application.
+    reply(currentLayout(node) === data.layout_json, currentLayout(node) === data.layout_json ? "" : "layout_changed");
+    return;
+  }
+  if (data.revision < latestPreviewRevision(node)
+      || data.revision <= (session.record.appliedRevision ?? -1)) {
+    reply(false, "stale_revision"); return;
+  }
+  if (currentLayout(node) !== session.record.baseline) { reply(false, "layout_changed"); return; }
+  const widget = getWidget(node, "layout_json");
+  if (!widget) { reply(false, "node_missing"); return; }
+  const before = {
+    layout: widget.value, revision: node._speechBubbleLatestPreviewRevision,
+    properties: { ...node.properties }, sources: editorBaselineSources(node),
+    images: node.images, refs: node._speechBubblePreviewRefs, executedInput: node._speechBubbleExecutedInputSource,
+  };
+  try {
+    if (!applyLayout(node, data.layout_json, data.preview_data_url, data.revision)) throw new Error("Layout widget rejected the value");
+    session.receipts.push({ requestId: data.requestId, payload });
+    session.receipts = session.receipts.slice(-MAX_SAVE_RECEIPTS);
+    session.record.baseline = data.layout_json;
+    session.record.appliedRevision = data.revision;
+    session.record.receipts = session.receipts;
+    session.sources = editorBaselineSources(node);
+    session.inputSource = currentInputSource(node);
+    writeEditorRecord(session.record);
+    reply(true);
+  } catch (error) {
+    widget.value = before.layout;
+    node._speechBubbleLatestPreviewRevision = before.revision;
+    node.properties = before.properties;
+    try { clearPreview(node); } catch {}
+    node._speechBubblePreviewUrls = before.sources;
+    node._speechBubblePreviewRefs = before.refs;
+    node._speechBubbleExecutedInputSource = before.executedInput;
+    node.images = before.images;
+    try { restorePreview(node, before.sources); } catch {}
+    debugPreview("layout application failed", String(error));
+    reply(false, "apply_exception");
   }
 }
 
@@ -292,29 +470,44 @@ function applyLayout(node, layoutJson, previewDataUrl = "", revision = 0) {
   return widget.value === layoutJson;
 }
 
+
 window.addEventListener("message", (event) => {
   const data = event.data;
   if (!data || !data.type?.startsWith("speech_bubble:")) return;
+  if (window.location?.origin && event.origin !== window.location.origin) return;
+  if (data.type === "speech_bubble:connect_editor") { connectEditor(event, data); return; }
+  const session = editorSessions.get(data.key);
   const node = editorTargets.get(data.key);
-  if (!node) return;
-  if (data.type === "speech_bubble:set_layout_json") {
-    const applied = applyLayout(node, data.layout_json || "{}", data.preview_data_url || "", data.revision);
-    if (applied) finishEditorSession(data.key, false);
-    event.source?.postMessage(
-      { type: "speech_bubble:layout_applied", key: data.key, applied },
-      event.origin || "*",
-    );
+  if (!session || !node) {
+    if (data.type === "speech_bubble:set_layout_json") replyToEditor(event, {
+      type: "speech_bubble:layout_applied", key: data.key, connectionId: data.connectionId,
+      requestId: data.requestId, applied: false, reason: "reconnect_required",
+    });
     return;
   }
-  if (data.type === "speech_bubble:cancel_editor") {
-    finishEditorSession(data.key, true);
+  if (event.source !== session.popup || !data.connectionId || data.connectionId !== session.connectionId) return;
+  if (data.type === "speech_bubble:editor_committed") {
+    if (session.receipts.some(receipt => receipt.requestId === data.requestId)) finishEditorSession(data.key, false, true);
     return;
   }
+  if (data.type === "speech_bubble:editor_unloading") { session.connectionId = null; return; }
+  if (data.type === "speech_bubble:cancel_editor") { finishEditorSession(data.key, true, true); return; }
+  if (session.record.expiresAt <= Date.now()) {
+    if (data.type === "speech_bubble:set_layout_json") replyToEditor(event, {
+      type: "speech_bubble:layout_applied", key: data.key, connectionId: data.connectionId,
+      requestId: data.requestId, applied: false, reason: "session_expired",
+    });
+    return;
+  }
+  if (!node.graph || String(node.properties?.[EDITOR_NODE_PROPERTY] || "") !== session.record.nodeKey) return;
+  if (data.type === "speech_bubble:set_layout_json") { applyEditorSave(event, data, session, node); return; }
   if (data.type === "speech_bubble:live_preview" && data.preview_data_url) {
     const revision = previewRevision(data.revision);
     if (acceptPreviewRevision(node, revision)) restorePreview(node, [data.preview_data_url]);
+    if (Date.now() - session.record.updatedAt > 60000) writeEditorRecord(session.record);
   }
 });
+window.setInterval?.(pruneEditorRecords, 60000);
 
 app.registerExtension({
   name: "speech_bubble.editor_button",
@@ -342,6 +535,7 @@ app.registerExtension({
     nodeType.prototype.onConfigure = function (info) {
       const result = onConfigure?.apply(this, arguments);
       ensurePreviewKey(this);
+      if (info?.properties?.[EDITOR_NODE_PROPERTY]) setNodeProperty(this, EDITOR_NODE_PROPERTY, info.properties[EDITOR_NODE_PROPERTY]);
       const refs = info?.properties?.[PREVIEW_PROPERTY] || this.properties?.[PREVIEW_PROPERTY];
       const layoutJson = currentLayout(this);
       const storedLayout = info?.properties?.[PREVIEW_LAYOUT_PROPERTY]
@@ -420,27 +614,35 @@ app.registerExtension({
           return;
         }
         this._speechBubbleEditorWindow = null;
-        const randomPart = globalThis.crypto?.randomUUID?.()
-          || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-        const key = `speech_bubble_${this.id || "node"}_${randomPart}`;
+        pruneEditorRecords();
+        if (editorSessions.size >= MAX_EDITOR_SESSIONS) {
+          window.alert?.("Close an editor before opening another one.");
+          return;
+        }
+        const nodeKey = editorNodeKey(this);
+        const baseline = currentLayout(this);
+        const recoverable = storedEditorRecords().filter(record =>
+          record.expiresAt > Date.now() && String(record.nodeId) === String(this.id)
+          && record.nodeKey === nodeKey && record.baseline === baseline
+          && (!editorSessions.get(record.key)?.popup || editorSessions.get(record.key).popup.closed)
+        ).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const key = recoverable?.key || "speech_bubble_" + (this.id || "node") + "_" + editorNonce();
+        const record = recoverable || {
+          version: 2, key, nodeId: String(this.id), nodeKey, baseline, receipts: [],
+        };
+        try { if (!recoverable || localStorage.getItem(key) === null) localStorage.setItem(key, baseline); } catch {}
+        writeEditorRecord(record);
+        // Make room only by removing inactive recovery records, never an open editor.
+        pruneEditorRecords();
         const loadImageNode = findConnectedLoadImageNode(this);
         const imageUrl = getLoadImageUrl(loadImageNode);
-        try {
-          localStorage.setItem(key, layoutWidget?.value || "{}");
-        } catch {
-          // The editor can still open without localStorage.
-        }
-        const revisionBase = Math.max(
-          0,
-          latestPreviewRevision(this) + 1,
-          previewRevision(this.properties?.[PREVIEW_REVISION_PROPERTY]) + 1,
-        );
-        const params = new URLSearchParams({ jsonKey: key, v: "20260720-03", revisionBase: String(revisionBase) });
+        const revisionBase = Math.max(0, latestPreviewRevision(this) + 1,
+          previewRevision(this.properties?.[PREVIEW_REVISION_PROPERTY]) + 1, (record.appliedRevision ?? -1) + 1);
+        const params = new URLSearchParams({ jsonKey: key, v: "20261008-save-v2", revisionBase: String(revisionBase) });
         if (imageUrl) params.set("imageUrl", cacheBustedInputUrl(imageUrl, this));
-        const popup = window.open(`/extensions/ComfyUI-Speech-Bubble/speech-bubble-editor.html?${params.toString()}`, `speech_bubble_editor_${this.id}`);
+        const popup = window.open("/extensions/ComfyUI-Speech-Bubble/speech-bubble-editor.html?" + params.toString(), "speech_bubble_editor_" + this.id);
         if (!popup) return;
-        this._speechBubbleEditorWindow = popup;
-        beginEditorSession(key, this, popup);
+        beginEditorSession(key, this, popup, record);
       });
       if (editorButton) {
         editorButton.serialize = false;

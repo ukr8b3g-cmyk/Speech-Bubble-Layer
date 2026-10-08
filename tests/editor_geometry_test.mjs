@@ -227,7 +227,7 @@ assert.ok(!html.includes('<option value="dotted">'));
 assert.ok(html.includes("let hasElementList = false"));
 assert.ok(html.includes("if (!hasElementList)"));
 assert.ok(!html.includes("if (!state.elements.length)"));
-assert.ok(html.includes('type:"speech_bubble:cancel_editor"'));
+assert.match(html, /type:\s*"speech_bubble:cancel_editor"/);
 assert.ok(html.includes('window.addEventListener("pagehide"'));
 assert.ok(html.includes('id="frameAttachedDecorationList"'));
 assert.ok(html.includes("function drawAttachedFrameDecorations"));

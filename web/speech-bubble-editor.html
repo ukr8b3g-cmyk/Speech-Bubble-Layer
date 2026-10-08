@@ -239,7 +239,7 @@
     <button id="undo">Undo</button><button id="redo">Redo</button>
     <button id="fit">Fit</button><button id="minus">−</button><span id="zoom">100%</span><button id="plus">+</button>
     <span class="spacer"></span>
-    <button id="cancel">Cancel</button><button class="primary" id="save">Save Layout</button>
+    <span id="saveStatus" role="status" aria-live="polite" style="max-width:340px;font-size:12px;color:var(--muted)">Connecting…</span><button id="downloadLayout">Download layout JSON</button><button id="cancel">Cancel</button><button class="primary" id="save">Save Layout</button>
   </header>
   <div class="layout">
     <aside class="left">
@@ -1522,6 +1522,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     let pendingLivePreview = null;
     let lastLivePreviewDataUrl = null;
     let lastSentPreviewRevision = -1;
+    let editorStateLoaded = false;
     let editorCommitted = false;
     let editorClosed = false;
     function rotateAround(point,center,degrees){const angle=degrees*Math.PI/180,dx=point.x-center.x,dy=point.y-center.y;return{x:center.x+dx*Math.cos(angle)-dy*Math.sin(angle),y:center.y+dx*Math.sin(angle)+dy*Math.cos(angle)};}
@@ -1562,8 +1563,8 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     function flushLivePreview(){flushPendingEmphasisRegeneration();clearTimeout(livePreviewTimer);livePreviewTimer=null;flushPendingRender();clearTimeout(livePreviewTimer);livePreviewTimer=null;renderCanvas();updateLivePreviewCanvas();const dataUrl=livePreviewDataUrl()||lastLivePreviewDataUrl;pendingLivePreview=null;return dataUrl;}
     function currentLayoutJson(){flushPendingEmphasisRegeneration();return JSON.stringify({version:1,canvas:{width:state.width,height:state.height},background_visible:state.backgroundVisible,elements:state.elements},null,2);}
     function scheduleLivePreview(revision=renderRevision) {
-      if (!window.opener) return;
-      clearTimeout(livePreviewTimer); livePreviewTimer=setTimeout(()=>{if(revision!==renderRevision)return;updateLivePreviewCanvas();const previewDataUrl=livePreviewDataUrl();pendingLivePreview=null;if(previewDataUrl&&revision>=lastSentPreviewRevision){lastSentPreviewRevision=revision;lastLivePreviewDataUrl=previewDataUrl;window.opener?.postMessage({type:"speech_bubble:live_preview",key:jsonKey,revision,preview_data_url:previewDataUrl},"*");}},280);
+      if (!window.opener || !editorConnected || pendingSave) return;
+      clearTimeout(livePreviewTimer); livePreviewTimer=setTimeout(()=>{if(revision!==renderRevision)return;updateLivePreviewCanvas();const previewDataUrl=livePreviewDataUrl();pendingLivePreview=null;if(previewDataUrl&&revision>=lastSentPreviewRevision){lastSentPreviewRevision=revision;lastLivePreviewDataUrl=previewDataUrl;try{postEditorMessage({type:"speech_bubble:live_preview",revision,preview_data_url:previewDataUrl});}catch{editorConnected=false;}}},280);
     }
     function drawSelection(item){
       const handles=handlePoints(item),corners=[handles[0],handles[2],handles[4],handles[6]];ctx.save();ctx.strokeStyle="#3fa7ff";ctx.lineWidth=2/state.zoom;ctx.setLineDash([6,4]);ctx.beginPath();ctx.moveTo(corners[0].x,corners[0].y);corners.slice(1).forEach(point=>ctx.lineTo(point.x,point.y));ctx.closePath();ctx.stroke();ctx.setLineDash([]);
@@ -1588,7 +1589,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     }
     function takePendingRenderOptions(){const options=pendingRenderOptions;pendingRenderOptions={canvas:false,layers:false,preview:false};return options;}
     function performRequestedRender(){const options=takePendingRenderOptions(),revision=renderRevision;if(options.canvas)renderCanvas();if(options.layers)refreshLayers();if(options.preview)scheduleLivePreview(revision);}
-    function requestRender(options={canvas:true,layers:false,preview:false}){renderRevision+=1;pendingRenderOptions.canvas||=options.canvas===true;pendingRenderOptions.layers||=options.layers===true;pendingRenderOptions.preview||=options.preview===true;if(!renderFrameId)renderFrameId=requestAnimationFrame(()=>{renderFrameId=0;performRequestedRender();});}
+    function requestRender(options={canvas:true,layers:false,preview:false}){renderRevision+=1;scheduleEditorDraft();pendingRenderOptions.canvas||=options.canvas===true;pendingRenderOptions.layers||=options.layers===true;pendingRenderOptions.preview||=options.preview===true;if(!renderFrameId)renderFrameId=requestAnimationFrame(()=>{renderFrameId=0;performRequestedRender();});}
     function flushPendingRender(){if(!renderFrameId&&!pendingRenderOptions.canvas&&!pendingRenderOptions.layers&&!pendingRenderOptions.preview)return;if(renderFrameId){cancelAnimationFrame(renderFrameId);renderFrameId=0;}performRequestedRender();}
     function render(){requestRender({canvas:true,layers:true,preview:true});}
     function refreshLayers(){
@@ -1740,10 +1741,206 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     document.getElementById("groupSelection").onclick=groupSelected;document.getElementById("ungroupSelection").onclick=ungroupSelected;
     document.getElementById("plus").onclick=()=>{state.zoom=Math.min(4,state.zoom*1.2);requestRender({canvas:true});}; document.getElementById("minus").onclick=()=>{state.zoom=Math.max(.25,state.zoom/1.2);requestRender({canvas:true});}; document.getElementById("fit").onclick=fitView;
     document.getElementById("undo").onclick=undoAction; document.getElementById("redo").onclick=redoAction;
-     function closeEditorWithoutSaving(){if(editorClosed)return;editorClosed=true;clearTimeout(livePreviewTimer);livePreviewTimer=null;try{localStorage.removeItem(jsonKey);}catch{}window.opener?.postMessage({type:"speech_bubble:cancel_editor",key:jsonKey},"*");window.close();}
-     document.getElementById("cancel").onclick=closeEditorWithoutSaving; document.getElementById("save").onclick=()=>{const button=document.getElementById("save"),previewDataUrl=flushLivePreview(),revision=renderRevision,layout=currentLayoutJson();localStorage.setItem(jsonKey,layout);button.disabled=true;button.textContent="Saving…";window.opener?.postMessage({type:"speech_bubble:set_layout_json",key:jsonKey,revision,layout_json:layout,preview_data_url:previewDataUrl||""},"*");setTimeout(()=>{if(!button.isConnected||button.textContent!=="Saving…")return;button.disabled=false;button.textContent="Save Layout";alert("The layout could not be confirmed. Keep this editor open and try Save Layout again.");},1500);};
-    window.addEventListener("message",event=>{const data=event.data;if(data?.type!=="speech_bubble:layout_applied"||data.key!==jsonKey)return;const button=document.getElementById("save");if(data.applied){editorCommitted=true;editorClosed=true;try{localStorage.removeItem(jsonKey);}catch{}button.textContent="Saved";window.close();}else{button.disabled=false;button.textContent="Save Layout";}});
-    window.addEventListener("pagehide",()=>{if(editorCommitted||editorClosed)return;editorClosed=true;clearTimeout(livePreviewTimer);livePreviewTimer=null;try{localStorage.removeItem(jsonKey);}catch{}window.opener?.postMessage({type:"speech_bubble:cancel_editor",key:jsonKey},"*");});
+
+    // BEGIN EDITOR SAVE PROTOCOL
+    const editorConnectionId = globalThis.crypto?.randomUUID?.()
+      || Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+    const pendingSaveKey = jsonKey + ":pending_save:v2";
+    let editorConnected = false, pendingSave = null, sendAfterConnect = false;
+    let connectAttempt = 0, activeConnectAttempt = null;
+    let saveTimer = null, connectTimer = null, draftTimer = null, lastDraft = "";
+    let draftStorageFailed = false;
+    const saveButton = document.getElementById("save");
+    const saveStatus = document.getElementById("saveStatus");
+
+    function saveMessage(message, disabled = false, label = pendingSave ? "Retry Save" : "Save Layout") {
+      saveButton.disabled = disabled;
+      saveButton.textContent = label;
+      saveStatus.textContent = message + (draftStorageFailed
+        ? " Browser recovery storage is unavailable. Download the layout before closing." : "");
+    }
+    function persistEditorDraft() {
+      if (editorClosed || editorCommitted || !editorStateLoaded || !jsonKey) return;
+      try {
+        const layout = currentLayoutJson();
+        if (layout !== lastDraft) localStorage.setItem(jsonKey, layout);
+        lastDraft = layout;
+        draftStorageFailed = false;
+      } catch { draftStorageFailed = true; }
+    }
+    function scheduleEditorDraft() {
+      clearTimeout(draftTimer);
+      draftTimer = setTimeout(persistEditorDraft, 500);
+    }
+    function persistPendingSave() {
+      try { localStorage.setItem(pendingSaveKey, JSON.stringify(pendingSave)); }
+      catch { draftStorageFailed = true; }
+    }
+    function clearPendingSave() {
+      pendingSave = null;
+      try { localStorage.removeItem(pendingSaveKey); } catch {}
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(pendingSaveKey) || "null");
+      if (saved?.key === jsonKey && typeof saved.requestId === "string"
+          && typeof saved.layout_json === "string" && typeof saved.preview_data_url === "string"
+          && Number.isFinite(saved.revision) && saved.revision >= 0) pendingSave = saved;
+    } catch {}
+
+    function postEditorMessage(data) {
+      if (!window.opener || window.opener.closed) throw new Error("Original tab is unavailable");
+      window.opener.postMessage({ ...data, key: jsonKey, connectionId: editorConnectionId }, location.origin);
+    }
+    function connectToOpener() {
+      if (editorClosed) return;
+      editorConnected = false;
+      clearTimeout(connectTimer);
+      if (!window.opener || window.opener.closed) {
+        saveMessage("The original ComfyUI tab is unavailable. Download this layout, then reopen from the node.", false, "Reconnect");
+        return;
+      }
+      activeConnectAttempt = editorConnectionId + "-" + (++connectAttempt);
+      saveMessage("Connecting to the original node…", true, "Connecting…");
+      try { postEditorMessage({ type: "speech_bubble:connect_editor", attemptId: activeConnectAttempt }); }
+      catch {
+        saveMessage("Could not contact the original tab. Download this layout before closing.", false, "Reconnect");
+        return;
+      }
+      connectTimer = setTimeout(() => {
+        saveMessage("Connection was not confirmed. Keep this editor open and retry.", false, "Reconnect");
+      }, 1500);
+    }
+    function sendPendingSave() {
+      if (!pendingSave || editorClosed) return;
+      if (!editorConnected) { sendAfterConnect = true; connectToOpener(); return; }
+      clearTimeout(saveTimer);
+      const requestId = pendingSave.requestId;
+      saveMessage("Waiting for the node to confirm this layout…", true, "Saving…");
+      try { postEditorMessage(pendingSave); }
+      catch {
+        editorConnected = false;
+        saveMessage("The save could not be sent. Keep this editor open and retry.");
+        return;
+      }
+      saveTimer = setTimeout(() => {
+        if (!pendingSave || pendingSave.requestId !== requestId || editorClosed) return;
+        editorConnected = false;
+        saveMessage("Save is not yet confirmed. Retry Save confirms the same layout; your draft is kept.");
+      }, 1500);
+    }
+    function saveEditorLayout() {
+      if (editorClosed) return;
+      if (!editorStateLoaded) { saveMessage("The editor has not finished loading. Keep it open and check the browser console."); return; }
+      if (!pendingSave) {
+        try {
+          const previewDataUrl = flushLivePreview(), layout = currentLayoutJson();
+          persistEditorDraft();
+          pendingSave = {
+            type: "speech_bubble:set_layout_json", key: jsonKey,
+            requestId: editorConnectionId + "-" + (globalThis.crypto?.randomUUID?.()
+              || Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)),
+            revision: renderRevision, layout_json: layout, preview_data_url: previewDataUrl || "",
+          };
+          persistPendingSave();
+        } catch {
+          saveMessage("Could not prepare the layout. Download your layout and check the browser console.");
+          return;
+        }
+      }
+      sendPendingSave();
+    }
+    function closeEditorWithoutSaving() {
+      if (editorClosed) return;
+      editorClosed = true;
+      clearTimeout(livePreviewTimer); clearTimeout(draftTimer);
+      clearTimeout(saveTimer); clearTimeout(connectTimer);
+      try {
+        localStorage.removeItem(jsonKey);
+        localStorage.removeItem(pendingSaveKey);
+        localStorage.removeItem("speech_bubble:editor_session:v2:" + jsonKey);
+      } catch {}
+      try { postEditorMessage({ type: "speech_bubble:cancel_editor" }); } catch {}
+      window.close();
+    }
+    document.getElementById("cancel").onclick = closeEditorWithoutSaving;
+    saveButton.onclick = saveEditorLayout;
+    document.getElementById("downloadLayout").onclick = () => {
+      const url = URL.createObjectURL(new Blob([currentLayoutJson()], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url; link.download = "speech-bubble-layout.json"; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    window.addEventListener("message", event => {
+      const data = event.data;
+      if (event.source !== window.opener || event.origin !== location.origin
+          || data?.key !== jsonKey || data.connectionId !== editorConnectionId || editorClosed) return;
+      if (data.type === "speech_bubble:editor_connected") {
+        if (!activeConnectAttempt || data.attemptId !== activeConnectAttempt) return;
+        activeConnectAttempt = null;
+        clearTimeout(connectTimer);
+        if (!data.connected) {
+          const messages = {
+            layout_changed: "The node layout changed. Download this draft and reopen from the node.",
+            node_missing: "The original node is no longer in this workflow. Download this draft before closing.",
+            session_expired: "This editing session expired. Download this draft and reopen from the node.",
+            session_missing: "The recovery session is unavailable. Download this draft and reopen from the node.",
+            editor_in_use: "Another editor owns this session. Download this draft before closing.",
+            editor_limit: "Too many editors are open. Close another editor and reconnect.",
+          };
+          saveMessage(messages[data.reason] || "Could not reconnect. Download this draft before closing.", false, "Reconnect");
+          return;
+        }
+        editorConnected = true;
+        renderRevision = Math.max(renderRevision, (Number(data.revision) || 0) + 1);
+        saveMessage(pendingSave ? "An unconfirmed save is ready to retry." : "Connected. Changes are kept as a recovery draft.");
+        if (sendAfterConnect) { sendAfterConnect = false; sendPendingSave(); }
+        return;
+      }
+      if (data.type !== "speech_bubble:layout_applied" || !pendingSave || data.requestId !== pendingSave.requestId) return;
+      clearTimeout(saveTimer);
+      if (!data.applied) {
+        if (data.reason === "reconnect_required") {
+          editorConnected = false; sendAfterConnect = true; connectToOpener(); return;
+        }
+        if (data.reason === "stale_revision") {
+          clearPendingSave();
+          renderRevision = Math.max(renderRevision, (Number(data.revision) || 0) + 1);
+          saveMessage("A newer preview is active. Save again to send your current layout.");
+          return;
+        }
+        if (data.reason !== "apply_exception") editorConnected = false;
+        saveMessage(data.reason === "apply_exception"
+          ? "The node could not apply the layout. Your draft is kept; retry after resolving the node error."
+          : "The node rejected this save. Download your draft and reopen from the node.");
+        return;
+      }
+      const savedRequest = pendingSave;
+      clearPendingSave();
+      let current = "";
+      try { current = currentLayoutJson(); } catch {}
+      if (current !== savedRequest.layout_json) {
+        persistEditorDraft();
+        saveMessage("The previous layout was saved. You have newer changes; Save Layout saves them.");
+        return;
+      }
+      editorCommitted = true; editorClosed = true;
+      clearTimeout(draftTimer); clearTimeout(connectTimer); clearTimeout(livePreviewTimer);
+      try { localStorage.removeItem(jsonKey); } catch {}
+      saveMessage("Layout saved.", true, "Saved");
+      try { postEditorMessage({ type: "speech_bubble:editor_committed", requestId: savedRequest.requestId }); } catch {}
+      window.close();
+    });
+    window.addEventListener("pagehide", () => {
+      if (editorCommitted || editorClosed) return;
+      persistEditorDraft();
+      clearTimeout(livePreviewTimer); clearTimeout(draftTimer);
+      clearTimeout(saveTimer); clearTimeout(connectTimer);
+      editorConnected = false;
+      try { postEditorMessage({ type: "speech_bubble:editor_unloading" }); } catch {}
+    });
+    window.addEventListener("pageshow", event => { if (event.persisted && !editorClosed) connectToOpener(); });
+    connectToOpener();
+    // END EDITOR SAVE PROTOCOL
     const properties=document.getElementById("properties");
     const shapePropertyKeys=new Set(["shape_intensity","shape_asymmetry","shape_roundness","spike_count","valley_style","valley_concavity","lobe_count","lobe_depth","shape_softness"]);
     const textFitPropertyKeys=new Set(["text","writing","font_id","font_path","font_size","tracking","font_scale_x","font_scale_y","bold","italic","stroke_width","stroke_color","shadow_enabled","shadow_x","shadow_y","shadow_blur","auto_fit"]);
@@ -1782,7 +1979,7 @@ function drawBasicSymbol(item,kind){const x=Number(item.x)||0,y=Number(item.y)||
     window.addEventListener("blur",()=>{state.spaceDown=false;if(!state.drag)canvas.style.cursor="default";});
     image.onload=()=>{const nextWidth=image.naturalWidth,nextHeight=image.naturalHeight;if(nextWidth&&nextHeight&&(state.width!==nextWidth||state.height!==nextHeight)){const sx=nextWidth/state.width,sy=nextHeight/state.height;state.elements.forEach(item=>{item.x*=sx;item.y*=sy;item.w*=sx;item.h*=sy;if(item.font_size)item.font_size=integerFontSize(item.font_size*Math.min(sx,sy));});state.width=nextWidth;state.height=nextHeight;state.elements.forEach(item=>{if(item.type==="frame"&&item.fit_to_canvas)syncFrameToCanvas(item);else if(item.type==="emphasis_lines"){if(item.fit_to_canvas)syncEmphasisToCanvas(item);else regenerateEmphasisRays(item);}});}fitView({render:false});syncProperties();requestRender({canvas:true,layers:true,preview:false});deferStartupWork();};
     function deferStartupWork(){const deferred=()=>{requestRender({canvas:false,layers:false,preview:true});Promise.all([loadFrameManifest(),loadBubbleShapeManifest(),loadSfxAssetCatalog()]).then(()=>{initializePresetUI();refreshQuickSfx();refreshQuickFrames();refreshQuickEmphasisLines();});loadSystemFonts();};if("requestIdleCallback" in window)window.requestIdleCallback(deferred);else setTimeout(deferred,0);}
-    async function initializeEditor(){initializeSfxSwatches();initializeCompactColorSwatches();refreshQuickEmphasisLines();initializeDrawerResize();initializeAccordionState();initializeLeftSectionState();initializeRightDockResize();enhanceNumericInputs();loadState();loadUserPresets();if(imageUrl)image.src=imageUrl;else{fitView({render:false});syncProperties();requestRender({canvas:true,layers:true,preview:false});deferStartupWork();}}
+    async function initializeEditor(){initializeSfxSwatches();initializeCompactColorSwatches();refreshQuickEmphasisLines();initializeDrawerResize();initializeAccordionState();initializeLeftSectionState();initializeRightDockResize();enhanceNumericInputs();loadState();editorStateLoaded=true;loadUserPresets();if(imageUrl)image.src=imageUrl;else{fitView({render:false});syncProperties();requestRender({canvas:true,layers:true,preview:false});deferStartupWork();}}
     initializeEditor();
   </script>
 </body>
